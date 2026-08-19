@@ -12,4 +12,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::apiResource('students', StudentController::class);
+
+    Route::middleware('role:Admin')->get('/admin/dashboard', function () {
+        return response()->json(['message' => 'Welcome to the Admin dashboard']);
+    });
+
+    Route::middleware('role:Admin,Principal')->get('/principal/dashboard', function () {
+        return response()->json(['message' => 'Welcome to the Principal dashboard']);
+    });
+
+    Route::middleware('role:Admin,Principal,HOD')->get('/hod/dashboard', function () {
+        return response()->json(['message' => 'Welcome to the HOD dashboard']);
+    });
+
+    Route::middleware('role:Admin,Principal,HOD,Faculty')->get('/faculty/dashboard', function () {
+        return response()->json(['message' => 'Welcome to the Faculty dashboard']);
+    });
+
+    Route::middleware('role:Admin,Principal,HOD,Faculty,Student')->get('/student/dashboard', function () {
+        return response()->json(['message' => 'Welcome to the Student dashboard']);
+    });
 });
