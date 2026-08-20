@@ -1,268 +1,187 @@
-# Student CRUD Module
+# Student CRUD – Laravel REST API + Next.js
 
-A simple Student Management CRUD application built using Laravel.
+A Student Management System built using Laravel REST API and Next.js.
 
-This project was developed as part of a practical assignment to understand Laravel architecture, database migrations, models, controllers, routes, Blade views, and CRUD operations.
+## Tech Stack
+
+- Laravel
+- PHP
+- MySQL
+- Next.js
+- React
+- Laravel Sanctum
+- Postman
 
 ## Features
 
-- Add a new student
-- View all students
-- Edit student information
-- Delete student
-- Store student information in a database
-- Form validation
-- Success messages after operations
-
-## Student Information
-
-The application stores the following information:
-
-| Field | Description |
-|---|---|
-| ID | Unique student ID |
-| First Name | Student's first name |
-| Last Name | Student's last name |
-| Email | Student's email address |
-| Mobile | Student's mobile number |
-| City | Student's city |
-| Created At | Record creation time |
-| Updated At | Last update time |
-
-## Technologies Used
-
-- Laravel 13
-- PHP 8.4
-- MySQL
-- Blade Templates
-- HTML
-- CSS
-- Git
-- GitHub
+- User Registration
+- User Login
+- User Logout
+- Authentication using Laravel Sanctum
+- Student List
+- Add Student
+- Edit Student
+- Delete Student
+- Server-side Validation
+- REST API Integration
+- Protected API Routes
 
 ## Project Structure
 
-    student-crud/
-    │
-    ├── app/
-    │   ├── Http/
-    │   │   └── Controllers/
-    │   │       └── StudentController.php
-    │   │
-    │   └── Models/
-    │       └── Student.php
-    │
-    ├── database/
-    │   └── migrations/
-    │       └── create_students_table.php
-    │
-    ├── resources/
-    │   └── views/
-    │       └── students/
-    │           ├── index.blade.php
-    │           ├── create.blade.php
-    │           └── edit.blade.php
-    │
-    ├── routes/
-    │   └── web.php
-    │
-    ├── public/
-    ├── storage/
-    ├── tests/
-    ├── artisan
-    ├── composer.json
-    └── README.md
+### Backend
 
-## CRUD Routes
+The Laravel backend provides REST APIs for authentication and student CRUD operations.
 
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/students` | View all students |
-| GET | `/students/create` | Open add student form |
-| POST | `/students` | Create a student |
-| GET | `/students/edit/{id}` | Open edit form |
-| PUT | `/students/{id}` | Update student |
-| DELETE | `/students/{id}` | Delete student |
+### Frontend
 
-## How It Works
+The Next.js frontend provides the Student Management interface and communicates with the Laravel REST API.
 
-### 1. View Students
+## Backend Setup
 
-The `/students` route displays all students stored in the database.
+### 1. Install Dependencies
 
-    GET /students
+composer install
 
-The `StudentController` retrieves the student records using the `Student` model and sends them to the Blade view.
+### 2. Configure Environment
 
-### 2. Add Student
+Create the .env file and configure the database credentials.
 
-The user can click the **Add Student** button to open the student form.
+cp .env.example .env
 
-    GET /students/create
+### 3. Generate Application Key
 
-After submitting the form, the data is sent to:
+php artisan key:generate
 
-    POST /students
+### 4. Run Database Migrations
 
-The controller validates the information and creates a new student record.
+php artisan migrate
 
-### 3. Edit Student
+### 5. Start Laravel Server
 
-Each student has an **Edit** button.
+php artisan serve
 
-    GET /students/edit/{id}
+Backend runs at:
 
-The existing information is loaded into the edit form.
+http://127.0.0.1:8000
 
-After making changes, the form sends:
+## Frontend Setup
 
-    PUT /students/{id}
+### 1. Go to Frontend Directory
 
-The student information is then updated in the database.
+cd frontend
 
-### 4. Delete Student
+### 2. Install Dependencies
 
-Each student has a **Delete** button.
+npm install
 
-    DELETE /students/{id}
+### 3. Start Next.js Development Server
 
-The selected student record is deleted from the database.
+npm run dev
 
-## Database
+Frontend runs at:
 
-The project uses a `students` table.
+http://localhost:3000
 
-The table contains:
+## API Endpoints
 
-    id
-    first_name
-    last_name
-    email
-    mobile
-    city
-    created_at
-    updated_at
+### Authentication
 
-The table is created using a Laravel migration.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/register | Register a new user |
+| POST | /api/login | Login user |
+| POST | /api/logout | Logout authenticated user |
+| GET | /api/user | Get authenticated user |
+
+### Student CRUD
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/students | Get all students |
+| POST | /api/students | Add a new student |
+| GET | /api/students/{id} | Get a specific student |
+| PUT | /api/students/{id} | Update a student |
+| DELETE | /api/students/{id} | Delete a student |
 
 ## Validation
 
-Student information is validated before it is stored.
+Server-side validation is implemented using Laravel validation.
 
-Example validation rules:
+The student data includes validation for:
 
-    $request->validate([
-        'first_name' => 'required',
-        'last_name' => 'required',
-        'email' => 'required|email',
-        'mobile' => 'required',
-        'city' => 'required',
-    ]);
+- First Name
+- Last Name
+- Email
+- Mobile
+- City
 
-## Running the Project
+Invalid data is rejected by the Laravel API with an appropriate validation error message.
 
-### 1. Clone the Repository
+## Authentication
 
-    git clone https://github.com/Satvik-4web/laravelapp.git
+The application uses Laravel Sanctum for API authentication.
 
-### 2. Open the Project
+Protected API routes require a valid authentication token.
 
-    cd laravelapp
+Unauthenticated requests are rejected by the Laravel API.
 
-### 3. Install Dependencies
+## Testing
 
-    composer install
+The REST APIs were tested using Postman.
 
-### 4. Create the Environment File
+The following operations were tested:
 
-    copy .env.example .env
+- User Registration
+- User Login
+- Get Authenticated User
+- Student CRUD Operations
+- User Logout
+- Authentication Protection
+- Server-side Validation
 
-### 5. Generate Application Key
+The Next.js frontend was tested for:
 
-    php artisan key:generate
+- Login
+- Student Listing
+- Adding Students
+- Editing Students
+- Deleting Students
+- Validation
+- Logout
 
-### 6. Configure the Database
+## Student CRUD Operations
 
-Open the `.env` file and configure your MySQL database.
+The application supports complete CRUD functionality:
 
-    DB_CONNECTION=mysql
-    DB_HOST=127.0.0.1
-    DB_PORT=3306
-    DB_DATABASE=student_crud
-    DB_USERNAME=root
-    DB_PASSWORD=
+1. Create a new student
+2. View the student list
+3. Edit student information
+4. Delete a student
 
-### 7. Run the Migration
-
-    php artisan migrate
-
-### 8. Start the Laravel Server
-
-    php artisan serve
-
-Open the application at:
-
-    http://127.0.0.1:8000
-
-Student CRUD page:
-
-    http://127.0.0.1:8000/students
+All operations are performed through the Laravel REST API and displayed through the Next.js frontend.
 
 ## Git Branch
 
-The project was developed on:
+feature/student-api-nextjs
 
-    feature/student-crud
+## Project Demo
 
-## Git Commit
+The project demonstrates:
 
-The completed Student CRUD module was committed using:
+1. User Login
+2. Student List
+3. Add Student
+4. Edit Student
+5. Delete Student
+6. Server-side Validation
+7. Logout
 
-    Completed Student CRUD Module
+## Project URLs
 
-## CRUD Operations
+Frontend:
 
-The application implements the complete CRUD cycle:
+http://localhost:3000
 
-    Create → Read → Update → Delete
+Backend API:
 
-### Create
-
-Add a new student using the student registration form.
-
-### Read
-
-View all students on the Student List page.
-
-### Update
-
-Edit existing student information.
-
-### Delete
-
-Remove a student record from the database.
-
-## Learning Outcomes
-
-Through this project, I learned and implemented:
-
-- Laravel MVC architecture
-- Laravel routing
-- Controllers
-- Eloquent models
-- Database migrations
-- Blade templates
-- Form handling
-- Form validation
-- MySQL database operations
-- CRUD functionality
-- Git branching
-- Git commits
-- GitHub repository management
-
-## Author
-
-**Satvik**
-
-Student CRUD Module  
-Built using Laravel.
+http://127.0.0.1:8000/api
