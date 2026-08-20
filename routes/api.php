@@ -45,19 +45,25 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Student CRUD
     Route::get('/students', [StudentController::class, 'index'])
+        ->middleware('role:Admin,Principal,HOD,Faculty')
         ->name('students.index');
 
     Route::post('/students', [StudentController::class, 'store'])
+        ->middleware('role:Admin,Principal,HOD,Faculty')
         ->name('students.store');
 
     Route::get('/students/{student}', [StudentController::class, 'show'])
+        ->middleware('role:Admin,Principal,HOD,Faculty')
         ->name('students.show');
 
     Route::put('/students/{student}', [StudentController::class, 'update'])
+        ->middleware('role:Admin,Principal,HOD,Faculty')
         ->name('students.update');
 
-    Route::patch('/students/{student}', [StudentController::class, 'update']);
+    Route::patch('/students/{student}', [StudentController::class, 'update'])
+        ->middleware('role:Admin,Principal,HOD,Faculty');
 
     Route::delete('/students/{student}', [StudentController::class, 'destroy'])
+        ->middleware('role:Admin,Principal,HOD,Faculty')
         ->name('students.destroy');
 });
