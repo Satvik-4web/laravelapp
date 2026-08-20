@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface Student {
   id: number;
@@ -11,12 +12,13 @@ interface Student {
   city: string;
 }
 
-const API_URL = "http://127.0.0.1:8000/api/students";
+const API_URL = `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"}/students`;
 
 export default function Home() {
+  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
@@ -27,13 +29,60 @@ export default function Home() {
     city: "",
   });
 
+  const checkAuth = () => {
+    const token = localStorage.getItem("token");
+    const userStr = localStorage.getItem("user");
+
+    if (!token || !userStr) {
+      localStorage.clear();
+      router.push("/login");
+      return null;
+    }
+
+    try {
+      const parsedUser = JSON.parse(userStr);
+      if (parsedUser.role === "Student") {
+        router.push("/unauthorized");
+        return null;
+      }
+      setUser(parsedUser);
+      return token;
+    } catch (e) {
+      localStorage.clear();
+      router.push("/login");
+      return null;
+    }
+  };
+
   const fetchStudents = async () => {
+    const token = checkAuth();
+    if (!token) return;
+
     try {
       setLoading(true);
 
-      const response = await fetch(API_URL);
-      const data = await response.json();
+      const response = await fetch(API_URL, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        alert("Failed to load students.");
+        return;
+      }
+
+      const data = await response.json();
       setStudents(data);
     } catch (error) {
       console.error(error);
@@ -47,9 +96,7 @@ export default function Home() {
     fetchStudents();
   }, []);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.name]: e.target.value,
@@ -57,17 +104,35 @@ export default function Home() {
   };
 
   const addStudent = async () => {
+    const token = checkAuth();
+    if (!token) return;
+
     try {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(form),
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        if (response.status === 422) {
+          const errData = await response.json();
+          alert(errData.message || "Validation failed.");
+          return;
+        }
         alert("Failed to create student.");
         return;
       }
@@ -94,21 +159,35 @@ export default function Home() {
 
   const updateStudent = async () => {
     if (editingId === null) return;
+    const token = checkAuth();
+    if (!token) return;
 
     try {
-      const response = await fetch(
-        `${API_URL}/${editingId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(form),
-        }
-      );
+      const response = await fetch(`${API_URL}/${editingId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        if (response.status === 422) {
+          const errData = await response.json();
+          alert(errData.message || "Validation failed.");
+          return;
+        }
         alert("Failed to update student.");
         return;
       }
@@ -122,21 +201,31 @@ export default function Home() {
   };
 
   const deleteStudent = async (id: number) => {
-    const confirmDelete = confirm(
-      "Are you sure you want to delete this student?"
-    );
-
+    const confirmDelete = confirm("Are you sure you want to delete this student?");
     if (!confirmDelete) return;
+
+    const token = checkAuth();
+    if (!token) return;
 
     try {
       const response = await fetch(`${API_URL}/${id}`, {
         method: "DELETE",
         headers: {
           Accept: "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
         alert("Failed to delete student.");
         return;
       }
@@ -145,6 +234,27 @@ export default function Home() {
     } catch (error) {
       console.error(error);
       alert("Something went wrong.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"}/logout`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      localStorage.clear();
+      router.push("/login");
     }
   };
 
@@ -172,8 +282,17 @@ export default function Home() {
           <h1>Student Management</h1>
 
           <p>
-            Manage your students through a modern REST API.
+            Welcome, <strong>{user?.name}</strong> ({user?.role}) · Manage students through the REST API.
           </p>
+
+          <div style={{ marginTop: "15px", display: "flex", gap: "10px" }}>
+            <button onClick={() => router.push("/dashboard")} className="nav-btn">
+              ← Dashboard
+            </button>
+            <button onClick={handleLogout} className="logout-btn">
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="student-count">
@@ -621,6 +740,38 @@ export default function Home() {
 
         .refresh-button:hover {
           background: #f8fafc;
+        }
+
+        .nav-btn {
+          border: 1px solid #cbd5e1;
+          background: white;
+          color: #334155;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-family: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s ease;
+        }
+
+        .nav-btn:hover {
+          background: #f8fafc;
+        }
+
+        .logout-btn {
+          border: none;
+          background: #fee2e2;
+          color: #dc2626;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-family: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s ease;
+        }
+
+        .logout-btn:hover {
+          background: #fecaca;
         }
 
         .table-wrapper {
