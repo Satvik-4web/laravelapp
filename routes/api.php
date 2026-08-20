@@ -1,35 +1,63 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\StudentController;
-use Illuminate\Support\Facades\Route;
 
-Route::post('/register', [AuthController::class, 'register']);
+use App\Http\Controllers\Api\DashboardController;
+
+/*
+|--------------------------------------------------------------------------
+| Public Authentication Routes
+|--------------------------------------------------------------------------
+*/
+
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
+
+/*
+|--------------------------------------------------------------------------
+| Protected Routes
+|--------------------------------------------------------------------------
+*/
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user', [AuthController::class, 'user']);
+
+    // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'user']);
+    Route::get('/me', [AuthController::class, 'me']);
 
-    Route::apiResource('students', StudentController::class);
+    // Bonus: Change Password
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
 
-    Route::middleware('role:Admin')->get('/admin/dashboard', function () {
-        return response()->json(['message' => 'Welcome to the Admin dashboard']);
-    });
+    // Dashboard Endpoints with Role-Based Access Control
+    Route::get('/admin/dashboard', [DashboardController::class, 'admin'])
+        ->middleware('role:Admin');
+    Route::get('/principal/dashboard', [DashboardController::class, 'principal'])
+        ->middleware('role:Principal,Admin');
+    Route::get('/hod/dashboard', [DashboardController::class, 'hod'])
+        ->middleware('role:HOD,Admin');
+    Route::get('/faculty/dashboard', [DashboardController::class, 'faculty'])
+        ->middleware('role:Faculty,Admin');
+    Route::get('/student/dashboard', [DashboardController::class, 'student'])
+        ->middleware('role:Student,Admin');
 
-    Route::middleware('role:Admin,Principal')->get('/principal/dashboard', function () {
-        return response()->json(['message' => 'Welcome to the Principal dashboard']);
-    });
+    // Student CRUD
+    Route::get('/students', [StudentController::class, 'index'])
+        ->name('students.index');
 
-    Route::middleware('role:Admin,Principal,HOD')->get('/hod/dashboard', function () {
-        return response()->json(['message' => 'Welcome to the HOD dashboard']);
-    });
+    Route::post('/students', [StudentController::class, 'store'])
+        ->name('students.store');
 
-    Route::middleware('role:Admin,Principal,HOD,Faculty')->get('/faculty/dashboard', function () {
-        return response()->json(['message' => 'Welcome to the Faculty dashboard']);
-    });
+    Route::get('/students/{student}', [StudentController::class, 'show'])
+        ->name('students.show');
 
-    Route::middleware('role:Admin,Principal,HOD,Faculty,Student')->get('/student/dashboard', function () {
-        return response()->json(['message' => 'Welcome to the Student dashboard']);
-    });
+    Route::put('/students/{student}', [StudentController::class, 'update'])
+        ->name('students.update');
+
+    Route::patch('/students/{student}', [StudentController::class, 'update']);
+
+    Route::delete('/students/{student}', [StudentController::class, 'destroy'])
+        ->name('students.destroy');
 });
