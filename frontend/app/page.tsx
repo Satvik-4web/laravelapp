@@ -12,14 +12,13 @@ interface Student {
   city: string;
 }
 
-const API_URL = "http://127.0.0.1:8000/api/students";
+const API_URL = `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"}/students`;
 
 export default function Home() {
   const router = useRouter();
-
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
@@ -30,249 +29,121 @@ export default function Home() {
     city: "",
   });
 
-  /*
-   * ---------------------------------------------------------
-   * AUTH HEADERS
-   * ---------------------------------------------------------
-   */
-
-  const getAuthHeaders = () => {
+  const checkAuth = () => {
     const token = localStorage.getItem("token");
+    const userStr = localStorage.getItem("user");
 
-    return {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-  };
-
-  /*
-   * ---------------------------------------------------------
-   * CHECK AUTHENTICATION
-   * ---------------------------------------------------------
-   */
-
-  const checkAuthentication = () => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!token || !userStr) {
+      localStorage.clear();
       router.push("/login");
-      return false;
+      return null;
     }
 
-    return true;
+    try {
+      const parsedUser = JSON.parse(userStr);
+      if (parsedUser.role === "Student") {
+        router.push("/unauthorized");
+        return null;
+      }
+      setUser(parsedUser);
+      return token;
+    } catch (e) {
+      localStorage.clear();
+      router.push("/login");
+      return null;
+    }
   };
 
-  /*
-   * ---------------------------------------------------------
-   * GET STUDENTS
-   * ---------------------------------------------------------
-   */
-
   const fetchStudents = async () => {
-    try {
-      if (!checkAuthentication()) return;
+    const token = checkAuth();
+    if (!token) return;
 
+    try {
       setLoading(true);
 
       const response = await fetch(API_URL, {
-        method: "GET",
-        headers: getAuthHeaders(),
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      const data = await response.json();
-
-      console.log("GET students response:", data);
-
-      /*
-       * Token expired / invalid
-       */
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-
-        router.push("/login");
-        return;
-      }
-
       if (!response.ok) {
-        console.error("Failed to fetch students:", data);
-        alert(data.message || "Failed to fetch students.");
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        alert("Failed to load students.");
         return;
       }
 
-      /*
-       * Laravel can return either:
-       *
-       * [
-       *   {...},
-       *   {...}
-       * ]
-       *
-       * OR
-       *
-       * {
-       *   data: [
-       *     {...},
-       *     {...}
-       *   ]
-       * }
-       */
-
-      const studentData = Array.isArray(data)
-        ? data
-        : Array.isArray(data.data)
-        ? data.data
-        : [];
-
-      setStudents(studentData);
+      const data = await response.json();
+      setStudents(data);
     } catch (error) {
-      console.error("Fetch students error:", error);
-
-      alert(
-        "Could not connect to Laravel API. Make sure Laravel is running."
-      );
+      console.error(error);
+      alert("Could not connect to Laravel API.");
     } finally {
       setLoading(false);
     }
   };
 
-  /*
-   * ---------------------------------------------------------
-   * LOAD STUDENTS WHEN PAGE OPENS
-   * ---------------------------------------------------------
-   */
-
   useEffect(() => {
     fetchStudents();
   }, []);
 
-  /*
-   * ---------------------------------------------------------
-   * FORM INPUT CHANGE
-   * ---------------------------------------------------------
-   */
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.name]: e.target.value,
     });
   };
 
-  /*
-   * ---------------------------------------------------------
-   * ADD STUDENT
-   * ---------------------------------------------------------
-   */
-
   const addStudent = async () => {
+    const token = checkAuth();
+    if (!token) return;
+
     try {
-      if (!checkAuthentication()) return;
-
-      /*
-       * Basic frontend validation
-       */
-      if (
-        !form.first_name.trim() ||
-        !form.last_name.trim() ||
-        !form.email.trim() ||
-        !form.mobile.trim() ||
-        !form.city.trim()
-      ) {
-        alert("Please fill in all fields.");
-        return;
-      }
-
       const response = await fetch(API_URL, {
         method: "POST",
-
-        /*
-         * IMPORTANT:
-         * Authentication token is now sent.
-         */
-        headers: getAuthHeaders(),
-
-        body: JSON.stringify({
-          first_name: form.first_name.trim(),
-          last_name: form.last_name.trim(),
-          email: form.email.trim(),
-          mobile: form.mobile.trim(),
-          city: form.city.trim(),
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
       });
 
-      const data = await response.json();
-
-      console.log("POST student response:", data);
-
-      /*
-       * Unauthorized
-       */
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-
-        router.push("/login");
-        return;
-      }
-
-      /*
-       * Laravel validation error
-       */
-      if (response.status === 422) {
-        console.error("Validation error:", data);
-
-        if (data.errors) {
-          const messages = Object.values(data.errors)
-            .flat()
-            .join("\n");
-
-          alert(messages);
-        } else {
-          alert(data.message || "Validation failed.");
-        }
-
-        return;
-      }
-
-      /*
-       * Other errors
-       */
       if (!response.ok) {
-        console.error("Create student failed:", data);
-
-        alert(
-          data.message || "Failed to create student."
-        );
-
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        if (response.status === 422) {
+          const errData = await response.json();
+          alert(errData.message || "Validation failed.");
+          return;
+        }
+        alert("Failed to create student.");
         return;
       }
-
-      /*
-       * Success
-       */
-      alert("Student added successfully!");
 
       clearForm();
-
-      await fetchStudents();
+      fetchStudents();
     } catch (error) {
-      console.error("Add student error:", error);
-
-      alert(
-        "Something went wrong while creating the student."
-      );
+      console.error(error);
+      alert("Something went wrong.");
     }
   };
-
-  /*
-   * ---------------------------------------------------------
-   * START EDIT
-   * ---------------------------------------------------------
-   */
 
   const startEdit = (student: Student) => {
     setEditingId(student.id);
@@ -284,198 +155,108 @@ export default function Home() {
       mobile: student.mobile,
       city: student.city,
     });
-
-    /*
-     * Scroll back to form
-     */
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
   };
-
-  /*
-   * ---------------------------------------------------------
-   * UPDATE STUDENT
-   * ---------------------------------------------------------
-   */
 
   const updateStudent = async () => {
     if (editingId === null) return;
+    const token = checkAuth();
+    if (!token) return;
 
     try {
-      if (!checkAuthentication()) return;
-
-      /*
-       * Basic validation
-       */
-      if (
-        !form.first_name.trim() ||
-        !form.last_name.trim() ||
-        !form.email.trim() ||
-        !form.mobile.trim() ||
-        !form.city.trim()
-      ) {
-        alert("Please fill in all fields.");
-        return;
-      }
-
-      const response = await fetch(
-        `${API_URL}/${editingId}`,
-        {
-          method: "PUT",
-
-          /*
-           * IMPORTANT:
-           * Authentication token is sent here too.
-           */
-          headers: getAuthHeaders(),
-
-          body: JSON.stringify({
-            first_name: form.first_name.trim(),
-            last_name: form.last_name.trim(),
-            email: form.email.trim(),
-            mobile: form.mobile.trim(),
-            city: form.city.trim(),
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      console.log("PUT student response:", data);
-
-      /*
-       * Unauthorized
-       */
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-
-        router.push("/login");
-        return;
-      }
-
-      /*
-       * Validation error
-       */
-      if (response.status === 422) {
-        console.error("Validation error:", data);
-
-        if (data.errors) {
-          const messages = Object.values(data.errors)
-            .flat()
-            .join("\n");
-
-          alert(messages);
-        } else {
-          alert(data.message || "Validation failed.");
-        }
-
-        return;
-      }
+      const response = await fetch(`${API_URL}/${editingId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
 
       if (!response.ok) {
-        console.error("Update student failed:", data);
-
-        alert(
-          data.message || "Failed to update student."
-        );
-
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        if (response.status === 422) {
+          const errData = await response.json();
+          alert(errData.message || "Validation failed.");
+          return;
+        }
+        alert("Failed to update student.");
         return;
       }
-
-      /*
-       * Success
-       */
-      alert("Student updated successfully!");
 
       clearForm();
-
-      await fetchStudents();
+      fetchStudents();
     } catch (error) {
-      console.error("Update student error:", error);
-
-      alert(
-        "Something went wrong while updating the student."
-      );
+      console.error(error);
+      alert("Something went wrong.");
     }
   };
-
-  /*
-   * ---------------------------------------------------------
-   * DELETE STUDENT
-   * ---------------------------------------------------------
-   */
 
   const deleteStudent = async (id: number) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this student?"
-    );
-
+    const confirmDelete = confirm("Are you sure you want to delete this student?");
     if (!confirmDelete) return;
 
+    const token = checkAuth();
+    if (!token) return;
+
     try {
-      if (!checkAuthentication()) return;
-
-      const response = await fetch(
-        `${API_URL}/${id}`,
-        {
-          method: "DELETE",
-
-          /*
-           * IMPORTANT:
-           * Authentication token is sent here too.
-           */
-          headers: getAuthHeaders(),
-        }
-      );
-
-      const data = await response.json();
-
-      console.log("DELETE student response:", data);
-
-      /*
-       * Unauthorized
-       */
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-
-        router.push("/login");
-        return;
-      }
+      const response = await fetch(`${API_URL}/${id}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
-        console.error("Delete student failed:", data);
-
-        alert(
-          data.message || "Failed to delete student."
-        );
-
+        if (response.status === 401) {
+          localStorage.clear();
+          router.push("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.push("/unauthorized");
+          return;
+        }
+        alert("Failed to delete student.");
         return;
       }
 
-      /*
-       * Success
-       */
-      alert("Student deleted successfully!");
-
-      await fetchStudents();
+      fetchStudents();
     } catch (error) {
-      console.error("Delete student error:", error);
-
-      alert(
-        "Something went wrong while deleting the student."
-      );
+      console.error(error);
+      alert("Something went wrong.");
     }
   };
 
-  /*
-   * ---------------------------------------------------------
-   * CLEAR FORM
-   * ---------------------------------------------------------
-   */
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"}/logout`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      localStorage.clear();
+      router.push("/login");
+    }
+  };
 
   const clearForm = () => {
     setForm({
@@ -489,71 +270,43 @@ export default function Home() {
     setEditingId(null);
   };
 
-  /*
-   * ---------------------------------------------------------
-   * LOGOUT
-   * ---------------------------------------------------------
-   */
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-
-    router.push("/login");
-  };
-
-  /*
-   * ---------------------------------------------------------
-   * UI
-   * ---------------------------------------------------------
-   */
-
   return (
     <main className="page">
 
       {/* HEADER */}
 
       <div className="header">
-
         <div>
-          <div className="badge">
-            LARAVEL × NEXT.JS
-          </div>
+          <div className="badge">LARAVEL × NEXT.JS</div>
 
           <h1>Student Management</h1>
 
           <p>
-            Manage your students through a modern REST API.
+            Welcome, <strong>{user?.name}</strong> ({user?.role}) · Manage students through the REST API.
           </p>
-        </div>
 
-        <div className="header-right">
-
-          <div className="student-count">
-            <span>{students.length}</span>
-            <small>Students</small>
+          <div style={{ marginTop: "15px", display: "flex", gap: "10px" }}>
+            <button onClick={() => router.push("/dashboard")} className="nav-btn">
+              ← Dashboard
+            </button>
+            <button onClick={handleLogout} className="logout-btn">
+              Logout
+            </button>
           </div>
-
-          <button
-            className="logout-button"
-            onClick={logout}
-          >
-            Logout
-          </button>
-
         </div>
 
+        <div className="student-count">
+          <span>{students.length}</span>
+          <small>Students</small>
+        </div>
       </div>
-
 
       {/* FORM */}
 
       <section className="card">
 
         <div className="section-header">
-
           <div>
-
             <h2>
               {editingId
                 ? "Edit Student"
@@ -565,18 +318,12 @@ export default function Home() {
                 ? "Update the student's information."
                 : "Enter the student's details below."}
             </p>
-
           </div>
-
         </div>
-
 
         <div className="form-grid">
 
-          {/* FIRST NAME */}
-
           <div className="field">
-
             <label>First Name</label>
 
             <input
@@ -585,14 +332,9 @@ export default function Home() {
               value={form.first_name}
               onChange={handleChange}
             />
-
           </div>
 
-
-          {/* LAST NAME */}
-
           <div className="field">
-
             <label>Last Name</label>
 
             <input
@@ -601,31 +343,20 @@ export default function Home() {
               value={form.last_name}
               onChange={handleChange}
             />
-
           </div>
 
-
-          {/* EMAIL */}
-
           <div className="field">
-
             <label>Email</label>
 
             <input
-              type="email"
               name="email"
               placeholder="student@example.com"
               value={form.email}
               onChange={handleChange}
             />
-
           </div>
 
-
-          {/* MOBILE */}
-
           <div className="field">
-
             <label>Mobile</label>
 
             <input
@@ -634,14 +365,9 @@ export default function Home() {
               value={form.mobile}
               onChange={handleChange}
             />
-
           </div>
 
-
-          {/* CITY */}
-
           <div className="field">
-
             <label>City</label>
 
             <input
@@ -650,18 +376,13 @@ export default function Home() {
               value={form.city}
               onChange={handleChange}
             />
-
           </div>
 
         </div>
 
-
-        {/* FORM BUTTONS */}
-
         <div className="form-actions">
 
           {editingId ? (
-
             <>
               <button
                 className="primary-button"
@@ -677,22 +398,18 @@ export default function Home() {
                 Cancel
               </button>
             </>
-
           ) : (
-
             <button
               className="primary-button"
               onClick={addStudent}
             >
               + Add Student
             </button>
-
           )}
 
         </div>
 
       </section>
-
 
       {/* STUDENTS */}
 
@@ -701,15 +418,12 @@ export default function Home() {
         <div className="section-header students-heading">
 
           <div>
-
             <h2>Students</h2>
 
             <p>
               All students stored in your database.
             </p>
-
           </div>
-
 
           <button
             className="refresh-button"
@@ -720,62 +434,41 @@ export default function Home() {
 
         </div>
 
-
-        {/* LOADING */}
-
         {loading ? (
 
           <div className="empty">
-
             <div className="loader"></div>
-
             <p>Loading students...</p>
-
           </div>
-
 
         ) : students.length === 0 ? (
 
-          /* EMPTY */
-
           <div className="empty">
-
-            <div className="empty-icon">
-              +
-            </div>
+            <div className="empty-icon">+</div>
 
             <h3>No students yet</h3>
 
             <p>
               Add your first student using the form above.
             </p>
-
           </div>
 
-
         ) : (
-
-          /* TABLE */
 
           <div className="table-wrapper">
 
             <table>
 
               <thead>
-
                 <tr>
-
                   <th>ID</th>
                   <th>STUDENT</th>
                   <th>EMAIL</th>
                   <th>MOBILE</th>
                   <th>CITY</th>
                   <th>ACTIONS</th>
-
                 </tr>
-
               </thead>
-
 
               <tbody>
 
@@ -783,74 +476,42 @@ export default function Home() {
 
                   <tr key={student.id}>
 
-                    {/* ID */}
-
                     <td>
-
                       <span className="id-badge">
                         #{student.id}
                       </span>
-
                     </td>
 
-
-                    {/* STUDENT */}
-
                     <td>
-
                       <div className="student-name">
-
                         <div className="avatar">
-
                           {student.first_name
                             .charAt(0)
                             .toUpperCase()}
-
                         </div>
-
 
                         <div>
-
                           <strong>
-
                             {student.first_name}{" "}
                             {student.last_name}
-
                           </strong>
-
                         </div>
-
                       </div>
-
                     </td>
-
-
-                    {/* EMAIL */}
 
                     <td className="email">
                       {student.email}
                     </td>
 
-
-                    {/* MOBILE */}
-
                     <td>
                       {student.mobile}
                     </td>
 
-
-                    {/* CITY */}
-
                     <td>
-
                       <span className="city-badge">
                         {student.city}
                       </span>
-
                     </td>
-
-
-                    {/* ACTIONS */}
 
                     <td>
 
@@ -864,7 +525,6 @@ export default function Home() {
                         >
                           Edit
                         </button>
-
 
                         <button
                           className="delete-button"
@@ -893,22 +553,15 @@ export default function Home() {
 
       </section>
 
-
-      {/* FOOTER */}
-
       <footer>
         Student Management System · Laravel REST API
       </footer>
-
-
-      {/* STYLES */}
 
       <style jsx>{`
 
         * {
           box-sizing: border-box;
         }
-
 
         .page {
           min-height: 100vh;
@@ -918,16 +571,13 @@ export default function Home() {
           font-family: Arial, Helvetica, sans-serif;
         }
 
-
         .header {
           max-width: 1150px;
           margin: 0 auto 35px;
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
-          gap: 25px;
         }
-
 
         .badge {
           display: inline-block;
@@ -941,7 +591,6 @@ export default function Home() {
           margin-bottom: 15px;
         }
 
-
         h1 {
           margin: 0;
           font-size: 42px;
@@ -950,20 +599,11 @@ export default function Home() {
           color: #0f172a;
         }
 
-
         .header p {
           margin: 10px 0 0;
           color: #64748b;
           font-size: 16px;
         }
-
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
 
         .student-count {
           background: #ffffff;
@@ -972,9 +612,7 @@ export default function Home() {
           border-radius: 14px;
           text-align: center;
           box-shadow: 0 5px 20px rgba(15, 23, 42, 0.06);
-          min-width: 100px;
         }
-
 
         .student-count span {
           display: block;
@@ -983,29 +621,10 @@ export default function Home() {
           color: #4f46e5;
         }
 
-
         .student-count small {
           color: #64748b;
           font-size: 12px;
         }
-
-
-        .logout-button {
-          border: none;
-          background: #fee2e2;
-          color: #dc2626;
-          padding: 11px 15px;
-          border-radius: 9px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-
-        .logout-button:hover {
-          background: #fecaca;
-        }
-
 
         .card {
           max-width: 1150px;
@@ -1017,11 +636,9 @@ export default function Home() {
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
         }
 
-
         .section-header {
           margin-bottom: 25px;
         }
-
 
         .section-header h2 {
           margin: 0;
@@ -1029,13 +646,11 @@ export default function Home() {
           font-size: 21px;
         }
 
-
         .section-header p {
           margin: 6px 0 0;
           color: #64748b;
           font-size: 14px;
         }
-
 
         .students-heading {
           display: flex;
@@ -1043,13 +658,11 @@ export default function Home() {
           align-items: center;
         }
 
-
         .form-grid {
           display: grid;
           grid-template-columns: repeat(5, 1fr);
           gap: 16px;
         }
-
 
         .field label {
           display: block;
@@ -1058,7 +671,6 @@ export default function Home() {
           font-weight: 700;
           color: #334155;
         }
-
 
         .field input {
           width: 100%;
@@ -1071,18 +683,14 @@ export default function Home() {
           outline: none;
         }
 
-
         .field input::placeholder {
           color: #94a3b8;
         }
 
-
         .field input:focus {
           border-color: #6366f1;
-          box-shadow:
-            0 0 0 3px rgba(99, 102, 241, 0.12);
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
         }
-
 
         .form-actions {
           margin-top: 22px;
@@ -1090,14 +698,12 @@ export default function Home() {
           gap: 10px;
         }
 
-
         button {
           font-family: inherit;
           font-weight: 700;
           cursor: pointer;
           transition: 0.2s ease;
         }
-
 
         .primary-button {
           border: none;
@@ -1107,12 +713,10 @@ export default function Home() {
           border-radius: 9px;
         }
 
-
         .primary-button:hover {
           background: #4338ca;
           transform: translateY(-1px);
         }
-
 
         .secondary-button {
           border: 1px solid #cbd5e1;
@@ -1122,11 +726,9 @@ export default function Home() {
           border-radius: 9px;
         }
 
-
         .secondary-button:hover {
           background: #f8fafc;
         }
-
 
         .refresh-button {
           border: 1px solid #cbd5e1;
@@ -1136,22 +738,50 @@ export default function Home() {
           border-radius: 8px;
         }
 
-
         .refresh-button:hover {
           background: #f8fafc;
         }
 
+        .nav-btn {
+          border: 1px solid #cbd5e1;
+          background: white;
+          color: #334155;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-family: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s ease;
+        }
+
+        .nav-btn:hover {
+          background: #f8fafc;
+        }
+
+        .logout-btn {
+          border: none;
+          background: #fee2e2;
+          color: #dc2626;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-family: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s ease;
+        }
+
+        .logout-btn:hover {
+          background: #fecaca;
+        }
 
         .table-wrapper {
           overflow-x: auto;
         }
 
-
         table {
           width: 100%;
           border-collapse: collapse;
         }
-
 
         th {
           padding: 13px 12px;
@@ -1163,7 +793,6 @@ export default function Home() {
           border-bottom: 1px solid #e2e8f0;
         }
 
-
         td {
           padding: 16px 12px;
           color: #334155;
@@ -1171,24 +800,20 @@ export default function Home() {
           border-bottom: 1px solid #f1f5f9;
         }
 
-
         tbody tr:hover {
           background: #fafafa;
         }
-
 
         .id-badge {
           color: #6366f1;
           font-weight: 800;
         }
 
-
         .student-name {
           display: flex;
           align-items: center;
           gap: 11px;
         }
-
 
         .avatar {
           width: 36px;
@@ -1202,16 +827,13 @@ export default function Home() {
           font-weight: 800;
         }
 
-
         .student-name strong {
           color: #0f172a;
         }
 
-
         .email {
           color: #475569;
         }
-
 
         .city-badge {
           background: #f1f5f9;
@@ -1222,12 +844,10 @@ export default function Home() {
           font-weight: 700;
         }
 
-
         .actions {
           display: flex;
           gap: 7px;
         }
-
 
         .edit-button {
           border: none;
@@ -1237,11 +857,9 @@ export default function Home() {
           border-radius: 7px;
         }
 
-
         .edit-button:hover {
           background: #4338ca;
         }
-
 
         .delete-button {
           border: none;
@@ -1251,18 +869,15 @@ export default function Home() {
           border-radius: 7px;
         }
 
-
         .delete-button:hover {
           background: #fecaca;
         }
-
 
         .empty {
           text-align: center;
           padding: 55px 20px;
           color: #64748b;
         }
-
 
         .empty-icon {
           width: 48px;
@@ -1278,18 +893,15 @@ export default function Home() {
           font-weight: 300;
         }
 
-
         .empty h3 {
           margin: 0;
           color: #334155;
         }
 
-
         .empty p {
           margin-top: 7px;
           color: #94a3b8;
         }
-
 
         .loader {
           width: 28px;
@@ -1301,13 +913,11 @@ export default function Home() {
           animation: spin 0.8s linear infinite;
         }
 
-
         @keyframes spin {
           to {
             transform: rotate(360deg);
           }
         }
-
 
         footer {
           max-width: 1150px;
@@ -1317,30 +927,18 @@ export default function Home() {
           font-size: 12px;
         }
 
-
-        @media (max-width: 1000px) {
+        @media (max-width: 900px) {
 
           .form-grid {
             grid-template-columns: repeat(2, 1fr);
           }
-
-        }
-
-
-        @media (max-width: 900px) {
 
           .header {
             align-items: flex-start;
             gap: 20px;
           }
 
-          .header-right {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
         }
-
 
         @media (max-width: 600px) {
 
@@ -1348,36 +946,20 @@ export default function Home() {
             padding: 30px 15px;
           }
 
-
           h1 {
             font-size: 32px;
           }
-
 
           .header {
             flex-direction: column;
           }
 
-
-          .header-right {
-            flex-direction: row;
-            width: 100%;
-          }
-
-
           .form-grid {
             grid-template-columns: 1fr;
           }
 
-
           .card {
             padding: 20px;
-          }
-
-
-          .students-heading {
-            align-items: flex-start;
-            gap: 15px;
           }
 
         }

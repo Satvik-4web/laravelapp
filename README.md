@@ -1,187 +1,172 @@
-# Student CRUD – Laravel REST API + Next.js
+# Student Management System
 
-A Student Management System built using Laravel REST API and Next.js.
+## Project Overview
+
+This is a Laravel REST API + Next.js frontend student management system featuring Sanctum-based token authentication, Role-Based Access Control (RBAC), and user profile management (including change password screens).
 
 ## Tech Stack
 
-- Laravel
-- PHP
-- MySQL
-- Next.js
-- React
-- Laravel Sanctum
-- Postman
+- **Backend**: Laravel 13, PHP 8.4, SQLite (for database storage)
+- **Frontend**: Next.js 16.3, React 19, TypeScript, Tailwind CSS
+- **Authentication**: Laravel Sanctum (Bearer Token)
+- **APIs**: REST API
+- **Testing**: Postman
 
-## Features
+## Requirements
 
-- User Registration
-- User Login
-- User Logout
-- Authentication using Laravel Sanctum
-- Student List
-- Add Student
-- Edit Student
-- Delete Student
-- Server-side Validation
-- REST API Integration
-- Protected API Routes
+- PHP >= 8.3
+- Composer
+- Node.js >= 18
+- npm
 
-## Project Structure
-
-### Backend
-
-The Laravel backend provides REST APIs for authentication and student CRUD operations.
-
-### Frontend
-
-The Next.js frontend provides the Student Management interface and communicates with the Laravel REST API.
+---
 
 ## Backend Setup
 
-### 1. Install Dependencies
+1. **Navigate to backend and install dependencies**:
+   ```bash
+   composer install
+   ```
 
-composer install
+2. **Configure Environment File**:
+   Copy `.env.example` to `.env` and verify database configuration. By default, the application is pre-configured to use SQLite:
+   ```bash
+   cp .env.example .env
+   ```
 
-### 2. Configure Environment
+3. **Generate Application Key**:
+   ```bash
+   php artisan key:generate
+   ```
 
-Create the .env file and configure the database credentials.
+4. **Run Migrations**:
+   ```bash
+   php artisan migrate
+   ```
 
-cp .env.example .env
+5. **Seed Roles and Default Users**:
+   Seeds default users for all roles with default password `password`:
+   ```bash
+   php artisan db:seed
+   ```
 
-### 3. Generate Application Key
+6. **Start Laravel Development Server**:
+   ```bash
+   php artisan serve
+   ```
+   The API will run at `http://127.0.0.1:8000`.
 
-php artisan key:generate
-
-### 4. Run Database Migrations
-
-php artisan migrate
-
-### 5. Start Laravel Server
-
-php artisan serve
-
-Backend runs at:
-
-http://127.0.0.1:8000
+---
 
 ## Frontend Setup
 
-### 1. Go to Frontend Directory
+1. **Navigate to the frontend directory**:
+   ```bash
+   cd frontend
+   ```
 
-cd frontend
+2. **Install Node modules**:
+   ```bash
+   npm install
+   ```
 
-### 2. Install Dependencies
+3. **Configure Environment Variables**:
+   Create a `frontend/.env.local` file pointing to the Laravel API URL:
+   ```env
+   NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
+   ```
 
-npm install
+4. **Start Frontend Development Server**:
+   ```bash
+   npm run dev
+   ```
+   The frontend will run at `http://localhost:3000`.
 
-### 3. Start Next.js Development Server
+---
 
-npm run dev
+## Authentication & Authorization
 
-Frontend runs at:
+The system implements Sanctum token-based authentication. Users present Bearer tokens in request headers to access protected endpoints.
 
-http://localhost:3000
+### Supported Roles
 
-## API Endpoints
+- **Admin**: Full access. Can access all dashboards, Student CRUD, and user management.
+- **Principal**: Can access Principal Dashboard, institution statistics, and view/read Student access.
+- **HOD**: Can access HOD Dashboard, department metrics, and view/read Student access.
+- **Faculty**: Can access Faculty Dashboard, assigned classes lists, and view Student profiles.
+- **Student**: Access only to the Student Dashboard (enrolled courses, profile). Restrained from accessing administrative/faculty dashboards or Student CRUD APIs.
 
-### Authentication
+### Role-Based Routing
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/register | Register a new user |
-| POST | /api/login | Login user |
-| POST | /api/logout | Logout authenticated user |
-| GET | /api/user | Get authenticated user |
+After a successful login, the frontend routes the user to their designated dashboard:
+- Admin -> `/admin/dashboard`
+- Principal -> `/principal/dashboard`
+- HOD -> `/hod/dashboard`
+- Faculty -> `/faculty/dashboard`
+- Student -> `/student/dashboard`
 
-### Student CRUD
+---
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/students | Get all students |
-| POST | /api/students | Add a new student |
-| GET | /api/students/{id} | Get a specific student |
-| PUT | /api/students/{id} | Update a student |
-| DELETE | /api/students/{id} | Delete a student |
+## Protected APIs & Endpoints
 
-## Validation
+| Method | Endpoint | Description | Middleware |
+|---|---|---|---|
+| POST | `/api/register` | Register a new user | Public |
+| POST | `/api/login` | Log in and receive a Bearer token | Public |
+| POST | `/api/logout` | Log out and revoke active tokens | `auth:sanctum` |
+| GET | `/api/me` | Return active logged-in user object | `auth:sanctum` |
+| GET | `/api/user` | Return active logged-in user object (legacy) | `auth:sanctum` |
+| POST | `/api/change-password` | Update user password | `auth:sanctum` |
+| GET | `/api/students` | Get all students | `auth:sanctum` |
+| POST | `/api/students` | Create new student | `auth:sanctum` |
+| GET | `/api/students/{id}` | Retrieve details of a student | `auth:sanctum` |
+| PUT | `/api/students/{id}` | Update student details | `auth:sanctum` |
+| DELETE | `/api/students/{id}` | Delete a student | `auth:sanctum` |
+| GET | `/api/admin/dashboard` | Admin dashboard data | `auth:sanctum`, `role:Admin` |
+| GET | `/api/principal/dashboard` | Principal dashboard data | `auth:sanctum`, `role:Principal,Admin` |
+| GET | `/api/hod/dashboard` | HOD dashboard data | `auth:sanctum`, `role:HOD,Admin` |
+| GET | `/api/faculty/dashboard` | Faculty dashboard data | `auth:sanctum`, `role:Faculty,Admin` |
+| GET | `/api/student/dashboard` | Student dashboard data | `auth:sanctum`, `role:Student,Admin` |
 
-Server-side validation is implemented using Laravel validation.
+---
 
-The student data includes validation for:
+## Bonus Features
 
-- First Name
-- Last Name
-- Email
-- Mobile
-- City
+1. **Change Password Screen**:
+   - Secure Change Password interface at `/change-password` path.
+   - Validates that current password matches, matches confirmation, and validates minimum password length rules.
+   - Force revokes active tokens upon success, requesting the user to log back in.
+2. **Role-Based Dashboards**:
+   - Dynamic, customized pages at `/admin/dashboard`, `/principal/dashboard`, `/hod/dashboard`, `/faculty/dashboard`, and `/student/dashboard`.
+   - Backend-verified middleware ensures no user can spoof access.
 
-Invalid data is rejected by the Laravel API with an appropriate validation error message.
+---
 
-## Authentication
+## Postman API Collection
 
-The application uses Laravel Sanctum for API authentication.
+A complete Postman collection is stored at:
+`postman/collections/Student_Management_API.postman_collection.json`
 
-Protected API routes require a valid authentication token.
+### Import and Use:
+1. Open Postman.
+2. Click **Import** and select the `.json` file.
+3. Configure the collection variables or environment:
+   - `base_url` = `http://127.0.0.1:8000/api`
+4. Log in using one of the seeded accounts (e.g. `admin@example.com` / `password`). The login request runs a test script that sets the global `token` variable automatically.
+5. All subsequent requests in the collection automatically consume the `{{token}}` variable for header authentication.
 
-Unauthenticated requests are rejected by the Laravel API.
+---
 
-## Testing
+## Security
 
-The REST APIs were tested using Postman.
+**CRITICAL GUIDELINES**:
+- Never commit real passwords, API tokens, database credentials, or `.env` secrets.
+- Always utilize `frontend/.env.local` environment variable mappings for frontend URLs.
+- Always clear local storage tokens on token expiration or logout.
 
-The following operations were tested:
-
-- User Registration
-- User Login
-- Get Authenticated User
-- Student CRUD Operations
-- User Logout
-- Authentication Protection
-- Server-side Validation
-
-The Next.js frontend was tested for:
-
-- Login
-- Student Listing
-- Adding Students
-- Editing Students
-- Deleting Students
-- Validation
-- Logout
-
-## Student CRUD Operations
-
-The application supports complete CRUD functionality:
-
-1. Create a new student
-2. View the student list
-3. Edit student information
-4. Delete a student
-
-All operations are performed through the Laravel REST API and displayed through the Next.js frontend.
+---
 
 ## Git Branch
 
-feature/student-api-nextjs
-
-## Project Demo
-
-The project demonstrates:
-
-1. User Login
-2. Student List
-3. Add Student
-4. Edit Student
-5. Delete Student
-6. Server-side Validation
-7. Logout
-
-## Project URLs
-
-Frontend:
-
-http://localhost:3000
-
-Backend API:
-
-http://127.0.0.1:8000/api
+All authentication, RBAC, change password, and dashboards implementation resides on the branch:
+`feature/authentication`

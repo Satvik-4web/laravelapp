@@ -15,11 +15,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $roles = ['Admin', 'Principal', 'HOD', 'Faculty', 'Student'];
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        foreach ($roles as $role) {
+            $email = strtolower($role) . '@example.com';
+            
+            // Check if user already exists
+            if (!User::where('email', $email)->exists()) {
+                User::create([
+                    'name' => $role . ' User',
+                    'email' => $email,
+                    'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                    'role' => $role,
+                ]);
+            }
+        }
     }
 }

@@ -3,114 +3,140 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function LoginPage() {
+export default function ChangePasswordPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
+      setIsError(true);
+      return;
+    }
+
     setLoading(true);
-    setError("");
+    setMessage("");
+    setIsError(false);
 
     try {
+      const token = localStorage.getItem("token");
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"}/login`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"}/change-password`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({
+            current_password: currentPassword,
+            password: password,
+            password_confirmation: confirmPassword,
+          }),
         }
       );
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 401) {
-          setError(data.message || "Invalid credentials");
-        } else if (response.status === 422) {
-          setError(data.message || "Validation errors occurred");
-        } else {
-          setError("An unexpected server error occurred.");
-        }
+        setMessage(data.message || "Password change failed.");
+        setIsError(true);
         return;
       }
 
-      // Save token and user details to localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      setMessage("Password changed successfully!");
+      setIsError(false);
 
-      // Redirect to correct dashboard
-      const role = data.user.role;
-      if (role === "Admin") {
-        router.push("/admin/dashboard");
-      } else if (role === "Principal") {
-        router.push("/principal/dashboard");
-      } else if (role === "HOD") {
-        router.push("/hod/dashboard");
-      } else if (role === "Faculty") {
-        router.push("/faculty/dashboard");
-      } else if (role === "Student") {
-        router.push("/student/dashboard");
-      } else {
-        router.push("/");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Could not connect to Laravel API. Please verify the server is running.");
+      setCurrentPassword("");
+      setPassword("");
+      setConfirmPassword("");
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
+    } catch (error) {
+      console.error(error);
+      setMessage("Could not connect to Laravel API. Please try again.");
+      setIsError(true);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="login-container">
-      <div className="login-card">
-        <div className="badge">SECURE AUTHENTICATION</div>
-        <h1>Welcome Back</h1>
-        <p>Login to your Student Management Portal</p>
+    <main className="change-pwd-container">
+      <div className="change-pwd-card">
+        <div className="badge">SECURITY SETTINGS</div>
+        <h1>Change Password</h1>
+        <p>Update your account password securely.</p>
 
-        {error && <div className="error-alert">{error}</div>}
+        {message && (
+          <div className={isError ? "alert alert-danger" : "alert alert-success"}>
+            {message}
+          </div>
+        )}
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleChangePassword}>
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="currentPassword">Current Password</label>
             <input
-              id="email"
-              type="email"
-              placeholder="e.g. admin@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="currentPassword"
+              type="password"
+              placeholder="••••••••"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="newPassword">New Password</label>
             <input
-              id="password"
+              id="newPassword"
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={8}
             />
           </div>
 
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? <div className="spinner"></div> : "Sign In"}
+          <div className="form-group">
+            <label htmlFor="confirmPassword">Confirm New Password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+
+          <button type="submit" className="submit-button" disabled={loading}>
+            {loading ? <div className="spinner"></div> : "Change Password"}
           </button>
         </form>
+
+        <button onClick={() => router.push("/dashboard")} className="back-link">
+          ← Back to Dashboard
+        </button>
       </div>
 
       <style jsx>{`
-        .login-container {
+        .change-pwd-container {
           min-height: 100vh;
           display: flex;
           justify-content: center;
@@ -119,7 +145,7 @@ export default function LoginPage() {
           font-family: Arial, Helvetica, sans-serif;
           padding: 20px;
         }
-        .login-card {
+        .change-pwd-card {
           width: 100%;
           max-width: 440px;
           background: #ffffff;
@@ -153,15 +179,22 @@ export default function LoginPage() {
           margin-top: 8px;
           margin-bottom: 30px;
         }
-        .error-alert {
-          background: #fee2e2;
-          border: 1px solid #fecaca;
-          color: #dc2626;
+        .alert {
           padding: 12px;
           border-radius: 9px;
           font-size: 14px;
           margin-bottom: 20px;
           text-align: left;
+        }
+        .alert-danger {
+          background: #fee2e2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
+        }
+        .alert-success {
+          background: #d1fae5;
+          border: 1px solid #a7f3d0;
+          color: #065f46;
         }
         .form-group {
           margin-bottom: 20px;
@@ -189,7 +222,7 @@ export default function LoginPage() {
           border-color: #6366f1;
           box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
         }
-        .login-button {
+        .submit-button {
           width: 100%;
           background: #4f46e5;
           color: #ffffff;
@@ -204,10 +237,10 @@ export default function LoginPage() {
           justify-content: center;
           align-items: center;
         }
-        .login-button:hover {
+        .submit-button:hover {
           background: #4338ca;
         }
-        .login-button:disabled {
+        .submit-button:disabled {
           background: #a5b4fc;
           cursor: not-allowed;
         }
@@ -218,6 +251,20 @@ export default function LoginPage() {
           border-top-color: #ffffff;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
+        }
+        .back-link {
+          margin-top: 20px;
+          background: none;
+          border: none;
+          color: #4f46e5;
+          font-weight: 700;
+          font-size: 14px;
+          cursor: pointer;
+          display: inline-block;
+        }
+        .back-link:hover {
+          color: #4338ca;
+          text-decoration: underline;
         }
         @keyframes spin {
           to {
