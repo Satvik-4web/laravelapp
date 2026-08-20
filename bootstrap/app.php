@@ -11,11 +11,21 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias([
-            'role' => \App\Http\Middleware\RoleMiddleware::class,
-        ]);
-    })
+   ->withMiddleware(function (Middleware $middleware): void {
+    $middleware->alias([
+        'role' => \App\Http\Middleware\RoleMiddleware::class,
+    ]);
+
+    $middleware->redirectGuestsTo(function ($request) {
+        if ($request->is('api/*')) {
+            abort(response()->json([
+                'message' => 'Unauthenticated.'
+            ], 401));
+        }
+
+        return '/login';
+    });
+})
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })
